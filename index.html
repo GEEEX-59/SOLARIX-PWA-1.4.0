@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="description" content="Calculadora fotovoltaica y dimensionamiento de paneles solares y baterías 100% offline.">
+    <title>SOLARIX - Calculadora Solar Pro</title>
+
+    <!-- Web App Manifest estándar para PWA -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Iconos y Favicons Locales de Alta Resolución -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    <link rel="shortcut icon" href="icons/favicon.png">
+
+    <!-- Compatibilidad iOS / Safari PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Solarix">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
+
+    <!-- Registro oficial del Service Worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js', { scope: './' })
+            .then(reg => {
+              console.log('[PWA] Service Worker registrado exitosamente con scope:', reg.scope);
+            })
+            .catch(err => {
+              console.error('[PWA] Error al registrar Service Worker:', err);
+            });
+        });
+      }
+    </script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        glass: {
+                            bg: 'rgba(255, 255, 255, 0.12)',
+                            border: 'rgba(255, 255, 255, 0.25)',
+                            card: 'rgba(15, 23, 42, 0.75)'
+                        }
+                    },
+                    animation: {
+                        'pulse-glow': 'pulseGlow 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 15px rgba(245, 158, 11, 0.4)' },
+                            '50%': { boxShadow: '0 0 28px rgba(245, 158, 11, 0.8)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: radial-gradient(circle at 50% 10%, #1e1b4b 0%, #0f172a 60%, #030712 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 10px 35px -5px rgba(0, 0, 0, 0.5);
+        }
+        .glass-input {
+            background: rgba(15, 23, 42, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            transition: all 0.2s ease;
+        }
+        .glass-input:focus {
+            border-color: #f59e0b;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35);
+        }
+        .install-glow-btn {
+            background: linear-gradient(135deg, #f59e0b 0%, #eab308 50%, #f97316 100%);
+            box-shadow: 0 4px 20px -2px rgba(245, 158, 11, 0.5);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .install-glow-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(245, 158, 11, 0.7);
+        }
+        .install-glow-btn:active {
+            transform: translateY(0);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen relative pb-24 select-none">
+
+    <!-- Top Navigation Header -->
+    <header class="w-full glass-panel sticky top-0 z-40 border-b border-slate-700/60 backdrop-blur-md">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+            <!-- Logo & Brand -->
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 p-0.5 shadow-lg shadow-amber-500/25 flex items-center justify-center overflow-hidden">
+                    <img src="icons/icon-192.png" alt="Solarix Logo" class="w-full h-full object-cover rounded-[14px]">
+                </div>
+                <div>
+                    <h1 class="text-xl font-black bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-300 bg-clip-text text-transparent tracking-wide">SOLARIX PRO</h1>
+                    <div class="flex items-center gap-2 text-xs text-slate-400">
+                        <span>Calculadora Fotovoltaica</span>
+                        <span id="status-badge" class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Online
+                        </span>
+                        <span id="standalone-badge" class="hidden px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[11px] font-medium">
+                            ✓ App Instalada
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Install Button Header (Prominente en pantalla) -->
+            <div class="flex items-center gap-3">
+                <button id="pwa-header-install-btn" class="install-glow-btn text-slate-950 font-bold px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 transition-all">
+                    <svg class="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    <span id="header-install-text">Instalar App</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-1 w-full flex flex-col gap-6">
+
+        <!-- Banner Destacado de Instalación PWA en Pantalla -->
+        <section id="pwa-screen-banner" class="glass-panel p-5 sm:p-6 rounded-2xl border-amber-500/40 relative overflow-hidden bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-amber-950/30 shadow-2xl">
+            <div class="absolute -right-10 -bottom-10 w-44 h-44 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative z-10">
+                <div class="flex items-start sm:items-center gap-4">
+                    <div class="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-3xl shadow-inner flex-shrink-0">
+                        ⚡
+                    </div>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                            <h2 class="text-lg sm:text-xl font-black text-amber-300">Instalar Solarix en tu Dispositivo</h2>
+                            <span class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold uppercase tracking-wider">PWA Offline</span>
+                        </div>
+                        <p class="text-sm text-slate-300 max-w-2xl leading-relaxed">
+                            Úsala como aplicación nativa sin conexión a internet, directamente desde tu pantalla de inicio en <strong class="text-white">Android, iPhone, Windows o Mac</strong> sin depender de tiendas de aplicaciones.
+                        </p>
+                        <div class="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-400">
+                            <span class="flex items-center gap-1 text-emerald-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                100% Funcional Offline
+                            </span>
+                            <span class="flex items-center gap-1 text-emerald-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                Sin Consumo de Datos
+                            </span>
+                            <span class="flex items-center gap-1 text-emerald-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                Carga Ultrarrápida
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botón Principal en Pantalla -->
+                <div class="w-full md:w-auto flex flex-col sm:flex-row items-center gap-3 flex-shrink-0">
+                    <button id="pwa-screen-install-btn" class="install-glow-btn w-full md:w-auto text-slate-950 font-black px-6 py-3.5 rounded-xl text-base flex items-center justify-center gap-2.5 cursor-pointer shadow-xl active:scale-95 transition-all">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        <span id="screen-install-text">Instalar Ahora Gratis</span>
+                    </button>
+                    <button id="pwa-how-to-btn" class="w-full sm:w-auto px-4 py-3 rounded-xl border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white text-xs font-semibold transition-all">
+                        ¿Cómo funciona?
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Grid de Calculadora Solar -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Formulario de Configuración -->
+            <section class="lg:col-span-7 flex flex-col gap-6">
+                <!-- Consumo Eléctrico -->
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h2 class="text-lg font-bold text-amber-300 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        1. Consumo Eléctrico
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Consumo Promedio</label>
+                            <div class="flex">
+                                <input type="number" id="consumption" value="350" min="1" class="glass-input w-full rounded-l-xl px-4 py-2.5 text-lg font-bold">
+                                <select id="consumption-unit" class="glass-input rounded-r-xl px-3 border-l-0 text-slate-200 bg-slate-900 font-medium">
+                                    <option value="kwh_month">kWh / mes</option>
+                                    <option value="kwh_day">kWh / día</option>
+                                </select>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1.5">Dato obtenido de tu factura de luz.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Horas Sol Pico (HSP)</label>
+                            <input type="number" id="hsp" value="5.2" step="0.1" min="0.1" class="glass-input w-full rounded-xl px-4 py-2.5 text-lg font-bold">
+                            <p class="text-xs text-slate-400 mt-1.5">Promedio de radiación solar en tu zona geográfica.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parámetros de Equipos -->
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h2 class="text-lg font-bold text-amber-300 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                        2. Parámetros Técnicos del Sistema
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Potencia del Panel (Wp)</label>
+                            <input type="number" id="panel-power" value="550" step="10" min="50" class="glass-input w-full rounded-xl px-4 py-2.5 text-lg font-bold">
+                            <p class="text-xs text-slate-400 mt-1.5">Capacidad nominal del módulo (ej. 450W - 600W).</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Eficiencia del Sistema (%)</label>
+                            <input type="number" id="efficiency" value="80" min="50" max="100" class="glass-input w-full rounded-xl px-4 py-2.5 text-lg font-bold">
+                            <p class="text-xs text-slate-400 mt-1.5">Pérdidas por temperatura, cableado e inversor.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Días de Autonomía (Baterías)</label>
+                            <input type="number" id="autonomy" value="1.5" step="0.5" min="0" class="glass-input w-full rounded-xl px-4 py-2.5 text-lg font-bold">
+                            <p class="text-xs text-slate-400 mt-1.5">Días sin sol soportados por banco de almacenamiento.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Voltaje del Sistema (V)</label>
+                            <select id="system-voltage" class="glass-input w-full rounded-xl px-4 py-2.5 text-lg font-bold bg-slate-900">
+                                <option value="12">12 V (Sistemas pequeños / Campers)</option>
+                                <option value="24" selected>24 V (Casas de campo / Residencial)</option>
+                                <option value="48">48 V (Residencial alto / Industrial)</option>
+                            </select>
+                            <p class="text-xs text-slate-400 mt-1.5">Tensión de trabajo del banco de baterías.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Resultados del Dimensionamiento -->
+            <section class="lg:col-span-5 flex flex-col gap-6">
+                <div class="glass-panel p-6 rounded-2xl flex flex-col justify-between h-full border-amber-500/30">
+                    <div>
+                        <h2 class="text-xl font-black text-amber-300 mb-6 flex items-center gap-2">
+                            <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                            Resultados del Dimensionamiento
+                        </h2>
+
+                        <!-- Métrica Principal: Paneles Necesarios -->
+                        <div class="bg-gradient-to-br from-amber-500/25 via-yellow-500/15 to-transparent border border-amber-500/40 p-6 rounded-2xl mb-6 text-center shadow-lg relative overflow-hidden">
+                            <div class="absolute -right-6 -top-6 text-amber-500/10 text-8xl font-black select-none pointer-events-none">☀️</div>
+                            <span class="text-xs uppercase tracking-widest text-amber-200 font-bold">Paneles Solares Requeridos</span>
+                            <div id="result-panels" class="text-6xl font-black text-amber-400 my-2 tracking-tight">--</div>
+                            <span id="result-power-kw" class="text-sm font-semibold text-slate-300 bg-slate-900/60 px-3 py-1 rounded-full border border-slate-700/60 inline-block">Potencia Total: 0 kWp</span>
+                        </div>
+
+                        <!-- Desglose de Resultados -->
+                        <div class="space-y-3.5">
+                            <div class="flex justify-between items-center p-3.5 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                                <span class="text-slate-400 text-sm font-medium">Consumo Diario</span>
+                                <span id="result-daily-kwh" class="font-bold text-slate-100 text-base">0 kWh/día</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3.5 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                                <span class="text-slate-400 text-sm font-medium">Generación Estimada</span>
+                                <span id="result-daily-gen" class="font-bold text-amber-400 text-base">0 kWh/día</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3.5 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                                <span class="text-slate-400 text-sm font-medium">Banco de Baterías (Ah)</span>
+                                <span id="result-battery-ah" class="font-bold text-sky-400 text-base">0 Ah</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3.5 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                                <span class="text-slate-400 text-sm font-medium">Capacidad de Almacenamiento</span>
+                                <span id="result-battery-kwh" class="font-bold text-slate-100 text-base">0 kWh</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 pt-4 border-t border-slate-700/50 text-center">
+                        <p class="text-xs text-slate-400 flex items-center justify-center gap-1.5">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            PWA Solarix v1.4.0 • 100% Offline con Service Worker
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Barra Flotante de Instalación Inferior (Móvil / Pantallas reducidas) -->
+    <div id="pwa-floating-bar" class="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-96 glass-panel p-4 rounded-2xl z-50 border-amber-500/50 shadow-2xl flex items-center justify-between gap-4 transition-all duration-300">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-lg shadow-md flex-shrink-0">
+                ☀️
+            </div>
+            <div>
+                <h4 class="font-bold text-sm text-white">Instalar Solarix</h4>
+                <p class="text-xs text-slate-300">Acceso rápido y sin internet.</p>
+            </div>
+        </div>
+        <button id="pwa-floating-install-btn" class="install-glow-btn text-slate-950 font-bold px-4 py-2 rounded-xl text-xs whitespace-nowrap active:scale-95 transition-all">
+            Instalar
+        </button>
+    </div>
+
+    <!-- Modal de Instrucciones de Instalación (Multi-plataforma: iOS Safari, Chrome, Edge) -->
+    <div id="install-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 border-amber-500/40 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            <!-- Cerrar Modal -->
+            <button id="close-modal-btn" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold border border-slate-700">
+                ✕
+            </button>
+
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl">
+                    📲
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-amber-300">Instalar en tu Dispositivo</h3>
+                    <p class="text-xs text-slate-400">Guía de instalación paso a paso</p>
+                </div>
+            </div>
+
+            <!-- Contenido dinámico según plataforma -->
+            <div id="modal-instructions" class="space-y-4 text-sm text-slate-200">
+                <!-- Se llena dinámicamente con JavaScript -->
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-700/60 flex justify-end">
+                <button id="modal-ok-btn" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-sm transition-all">
+                    Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Lógica de Cálculo y Gestión Integral de PWA -->
+    <script>
+        // 1. Lógica de Cálculo Solar Fotovoltaico
+        const inputIds = ['consumption', 'consumption-unit', 'hsp', 'panel-power', 'efficiency', 'autonomy', 'system-voltage'];
+
+        function calculateSolar() {
+            const consumptionVal = parseFloat(document.getElementById('consumption').value) || 0;
+            const consumptionUnit = document.getElementById('consumption-unit').value;
+            const hsp = parseFloat(document.getElementById('hsp').value) || 1;
+            const panelPower = parseFloat(document.getElementById('panel-power').value) || 1;
+            const efficiency = (parseFloat(document.getElementById('efficiency').value) || 80) / 100;
+            const autonomy = parseFloat(document.getElementById('autonomy').value) || 0;
+            const systemVoltage = parseFloat(document.getElementById('system-voltage').value) || 24;
+
+            // Consumo diario en kWh
+            let dailyKwh = consumptionUnit === 'kwh_month' ? consumptionVal / 30 : consumptionVal;
+
+            // Energía diaria requerida considerando pérdidas
+            let requiredDailyKwh = dailyKwh / efficiency;
+
+            // Potencia pico requerida en Watts
+            let totalWpRequired = (requiredDailyKwh * 1000) / hsp;
+
+            // Cantidad de paneles redondeada al entero superior
+            let panelCount = Math.ceil(totalWpRequired / panelPower);
+            if (isNaN(panelCount) || panelCount < 0) panelCount = 0;
+
+            let totalPowerKw = (panelCount * panelPower) / 1000;
+            let dailyGeneration = totalPowerKw * hsp * efficiency;
+
+            // Capacidad de banco de baterías con 80% de profundidad de descarga
+            let batteryWh = (dailyKwh * 1000 * autonomy) / 0.8;
+            let batteryAh = batteryWh / systemVoltage;
+            let batteryKwh = batteryWh / 1000;
+
+            // Actualizar vista
+            document.getElementById('result-panels').innerText = panelCount;
+            document.getElementById('result-power-kw').innerText = `Potencia Total: ${totalPowerKw.toFixed(2)} kWp`;
+            document.getElementById('result-daily-kwh').innerText = `${dailyKwh.toFixed(2)} kWh/día`;
+            document.getElementById('result-daily-gen').innerText = `${dailyGeneration.toFixed(2)} kWh/día`;
+            document.getElementById('result-battery-ah').innerText = `${Math.ceil(batteryAh)} Ah`;
+            document.getElementById('result-battery-kwh').innerText = `${batteryKwh.toFixed(2)} kWh`;
+        }
+
+        inputIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', calculateSolar);
+                el.addEventListener('change', calculateSolar);
+            }
+        });
+
+        // Inicializar cálculos al cargar
+        calculateSolar();
+
+        // 2. Sistema de Notificaciones Toast
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'online' ? 'bg-emerald-600/90 border-emerald-500' : 
+                            type === 'offline' ? 'bg-amber-600/90 border-amber-500' : 
+                            'bg-slate-800/90 border-slate-700';
+
+            toast.className = `${bgClass} border text-white px-4 py-3 rounded-2xl shadow-2xl text-sm font-semibold pointer-events-auto transition-all duration-300 transform -translate-y-2 opacity-0 flex items-center gap-2 backdrop-blur-md`;
+            toast.innerHTML = `<span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('-translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // 3. Gestión de Conectividad Online / Offline
+        function updateOnlineStatus() {
+            const badge = document.getElementById('status-badge');
+            if (navigator.onLine) {
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online`;
+                badge.className = 'px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium flex items-center gap-1';
+                showToast('Conexión reestablecida', 'online');
+            } else {
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Offline`;
+                badge.className = 'px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-medium flex items-center gap-1';
+                showToast('Modo Offline: Calculadora 100% activa', 'offline');
+            }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
+        // 4. LÓGICA DE INSTALACIÓN PWA (Universal y Resistente)
+        let deferredPrompt = null;
+        const headerInstallBtn = document.getElementById('pwa-header-install-btn');
+        const screenInstallBtn = document.getElementById('pwa-screen-install-btn');
+        const floatingInstallBtn = document.getElementById('pwa-floating-install-btn');
+        const floatingBar = document.getElementById('pwa-floating-bar');
+        const howToBtn = document.getElementById('pwa-how-to-btn');
+        const installModal = document.getElementById('install-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const modalOkBtn = document.getElementById('modal-ok-btn');
+        const modalInstructions = document.getElementById('modal-instructions');
+        const standaloneBadge = document.getElementById('standalone-badge');
+        const headerInstallText = document.getElementById('header-install-text');
+        const screenInstallText = document.getElementById('screen-install-text');
+
+        // Detectar si ya está en modo Standalone (App instalada y abierta)
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                             window.navigator.standalone === true ||
+                             document.referrer.includes('android-app://');
+
+        function setInstalledUI() {
+            if (standaloneBadge) standaloneBadge.classList.remove('hidden');
+            if (headerInstallText) headerInstallText.innerText = 'App Instalada ✓';
+            if (screenInstallText) screenInstallText.innerText = 'App Instalada ✓';
+            if (headerInstallBtn) {
+                headerInstallBtn.classList.replace('install-glow-btn', 'bg-slate-800');
+                headerInstallBtn.classList.add('text-slate-300', 'border', 'border-slate-700');
+            }
+            if (screenInstallBtn) {
+                screenInstallBtn.classList.replace('install-glow-btn', 'bg-slate-800');
+                screenInstallBtn.classList.add('text-slate-300', 'border', 'border-slate-700');
+            }
+            if (floatingBar) floatingBar.classList.add('hidden');
+        }
+
+        if (isStandalone) {
+            setInstalledUI();
+        }
+
+        // Capturar evento oficial PWA beforeinstallprompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log('[PWA] Evento beforeinstallprompt capturado con éxito');
+            
+            // Los botones siempre están visibles en pantalla, ahora listos para el prompt nativo
+            if (!isStandalone) {
+                if (floatingBar) floatingBar.classList.remove('hidden');
+            }
+        });
+
+        // Detectar instalación completada
+        window.addEventListener('appinstalled', () => {
+            console.log('[PWA] ¡Aplicación instalada exitosamente!');
+            deferredPrompt = null;
+            setInstalledUI();
+            showToast('¡Solarix instalada en tu dispositivo!', 'online');
+        });
+
+        // Función para abrir modal de instrucciones según el dispositivo
+        function showPlatformInstallGuide() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const isMac = /Macintosh/.test(navigator.userAgent);
+
+            let guideHTML = '';
+
+            if (isIOS) {
+                guideHTML = `
+                    <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3">
+                        <span class="text-2xl">🍎</span>
+                        <div class="text-xs">
+                            <strong class="text-amber-300">Instalación en iPhone / iPad (Safari)</strong>
+                            <p class="text-slate-300">Apple requiere agregar la app desde el menú Compartir:</p>
+                        </div>
+                    </div>
+                    <ol class="space-y-2.5 text-xs text-slate-300 list-decimal list-inside pl-1">
+                        <li>Presiona el botón <strong class="text-white">Compartir</strong> (icono de cuadrado con flecha hacia arriba <span class="text-amber-400 font-bold">⎋</span>) en la barra inferior de Safari.</li>
+                        <li>Desplázate hacia abajo y selecciona <strong class="text-white">"Agregar al inicio"</strong> (<span class="text-amber-400 font-bold">+</span>).</li>
+                        <li>Pulsa <strong class="text-white">"Agregar"</strong> en la esquina superior derecha.</li>
+                    </ol>
+                    <p class="text-[11px] text-emerald-400 font-semibold">¡Listo! Se agregará el icono de Solarix a tu pantalla de inicio.</p>
+                `;
+            } else if (isAndroid) {
+                guideHTML = `
+                    <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3">
+                        <span class="text-2xl">🤖</span>
+                        <div class="text-xs">
+                            <strong class="text-amber-300">Instalación en Android (Chrome / Edge / Opera)</strong>
+                        </div>
+                    </div>
+                    <ol class="space-y-2.5 text-xs text-slate-300 list-decimal list-inside pl-1">
+                        <li>Toca el menú de tres puntos (<strong class="text-white">⋮</strong>) en la esquina superior derecha de tu navegador.</li>
+                        <li>Selecciona <strong class="text-white">"Instalar aplicación"</strong> o <strong class="text-white">"Agregar a la pantalla principal"</strong>.</li>
+                        <li>Confirma pulsando <strong class="text-white">"Instalar"</strong>.</li>
+                    </ol>
+                `;
+            } else {
+                guideHTML = `
+                    <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3">
+                        <span class="text-2xl">💻</span>
+                        <div class="text-xs">
+                            <strong class="text-amber-300">Instalación en PC / Mac (Chrome, Edge o Brave)</strong>
+                        </div>
+                    </div>
+                    <ol class="space-y-2.5 text-xs text-slate-300 list-decimal list-inside pl-1">
+                        <li>Busca el icono de <strong class="text-white">Instalar</strong> (<span class="text-amber-400 font-bold">🖥️</span> o <span class="text-amber-400 font-bold">⊕</span>) situado en la parte derecha de la barra de direcciones de tu navegador.</li>
+                        <li>O haz clic en el menú (<strong class="text-white">⋮</strong>) y elige <strong class="text-white">"Instalar Solarix..."</strong></li>
+                        <li>Haz clic en <strong class="text-white">Instalar</strong> para crear el acceso directo de escritorio.</li>
+                    </ol>
+                `;
+            }
+
+            modalInstructions.innerHTML = guideHTML;
+            installModal.classList.remove('hidden');
+            installModal.classList.add('flex');
+        }
+
+        // Disparador de instalación al hacer clic en cualquier botón de instalación
+        async function handleInstallClick() {
+            if (isStandalone) {
+                showToast('Solarix ya está abierta en modo aplicación instalada.', 'online');
+                return;
+            }
+
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    showToast('¡Instalando Solarix...', 'online');
+                } else {
+                    showToast('Instalación cancelada', 'info');
+                }
+                deferredPrompt = null;
+            } else {
+                // Si el evento nativo aún no ha ocurrido o es iOS / navegador no compatible con beforeinstallprompt
+                showPlatformInstallGuide();
+            }
+        }
+
+        // Vincular eventos de clics a los botones de instalación
+        if (headerInstallBtn) headerInstallBtn.addEventListener('click', handleInstallClick);
+        if (screenInstallBtn) screenInstallBtn.addEventListener('click', handleInstallClick);
+        if (floatingInstallBtn) floatingInstallBtn.addEventListener('click', handleInstallClick);
+        if (howToBtn) howToBtn.addEventListener('click', showPlatformInstallGuide);
+
+        // Control del Modal
+        function closeModal() {
+            installModal.classList.add('hidden');
+            installModal.classList.remove('flex');
+        }
+
+        if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+        if (modalOkBtn) modalOkBtn.addEventListener('click', closeModal);
+        if (installModal) {
+            installModal.addEventListener('click', (e) => {
+                if (e.target === installModal) closeModal();
+            });
+        }
+    </script>
+</body>
+</html>
